@@ -80,6 +80,10 @@ class UNetNSDE2(nn.Module):
         self.dconv_down4 = double_conv(256, 512)        
 
         self.maxpool = nn.MaxPool2d(2)
+
+        self.decoder_block1 = double_conv(512,512)
+        self.decoder_block2 = double_conv(512,512)
+
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)        
         
         self.dconv_up3 = double_conv(256 + 512, 256)
@@ -103,6 +107,9 @@ class UNetNSDE2(nn.Module):
         y = self.maxpool(var_c3)   
         
         x, y = self.dconv_down4(x,y)
+
+        x, y = self.decoder_block1(x,y)
+        x, y = self.decoder_block2(x,y)
         
         x = self.upsample(x)        
         y = self.upsample(y)        
@@ -164,7 +171,7 @@ class UNetNSDE(nn.Module):
         x = self.dconv_down4(x)
         
         x = self.decoder_block1(x)
-        x = self.decoder_block1(2)
+        x = self.decoder_block1(x)
 
         x = self.upsample(x)        
         x = torch.cat([x, conv3], dim=1)
@@ -284,7 +291,7 @@ class UNetSimple(nn.Module):
         x = self.dconv_down4(x)
         
         x = self.decoder_block1(x)
-        x = self.decoder_block1(2)
+        x = self.decoder_block1(x)
 
         x = self.upsample(x)        
         x = torch.cat([x, conv3], dim=1)

@@ -2,27 +2,35 @@ from Baysian_Layers import ConvCLTLayerDet
 import torch
 from torchvision import transforms
 from PIL import Image
-from Models.UNetClosed import UNetNSDE, PositionalEncoding, UNetSimple
+from Models.UNetClosed import UNetNSDE, PositionalEncoding, UNetSimple, double_conv
 from Models.UNetATT import SinusoidalPositionEmbeddings, UNetATT
 
 
-
+torch.autograd.set_detect_anomaly(True)
 # Arrange
-layer = ConvCLTLayerDet(1,1,3)
+act = torch.nn.ReLU()
+# layer = ConvCLTLayerDet(1,1,1)
+layer = double_conv(1,1)
 unet = UNetNSDE(1)
 img = Image.open("5.png").convert("L")
 convert_tensor = transforms.ToTensor()
 img = convert_tensor(img)
 img = img.view(1,*img.shape)
-var = torch.ones_like(img)*1e-5
+var = torch.ones_like(img)
 
 # Act
-layerOuputMu, layerOutputVar = layer(img, var)
+layerOutputMu, layerOutputVar = layer(img, var)
+actOutputMu = act(layerOutputMu)
+actOutputVar = act(layerOutputVar)
 unetOuputMu, unetOutputVar = unet(img, var)
+lossfunc = torch.nn.MSELoss()
 
+loss = lossfunc(img,layerOutputMu)
+loss.backward()
 # Results
 with torch.no_grad():
-    print(torch.isnan(layerOuputMu).any())
+    print(layerOutputMu.eq(actOutputMu).all())
+    print(torch.isnan(layerOutputMu).any())
     print(torch.isnan(layerOutputVar).any())
     print(torch.isnan(unetOuputMu).any())
     print(torch.isnan(unetOutputVar).any())
@@ -34,12 +42,13 @@ with torch.no_grad():
 var = torch.ones_like(img)*1e-5
 
 # Act
-layerOuputMu, layerOutputVar = layer(img, var)
+layerOutputMu, layerOutputVar = layer(img, var)
+
 unetOuputMu, unetOutputVar = unet(img, var)
 
 # Results
 with torch.no_grad():
-    print(torch.isnan(layerOuputMu).any())
+    print(torch.isnan(layerOutputMu).any())
     print(torch.isnan(layerOutputVar).any())
     print(torch.isnan(unetOuputMu).any())
     print(torch.isnan(unetOutputVar).any())
