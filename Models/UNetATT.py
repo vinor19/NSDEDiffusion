@@ -80,7 +80,9 @@ class ResnetBlock(nn.Module):
 
         # group 2
         # add in timestep embedding
-        h += self.dense_1(self.act_fn(t))[:, :, None, None]
+        emb = self.dense_1(self.act_fn(t))[:, :, None, None]
+        print(emb.shape,h.shape)
+        h += emb
 
         # group 3
         h = self.act_fn(self.normlize_2(h))

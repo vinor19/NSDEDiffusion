@@ -382,12 +382,14 @@ class ConvCLTLayerDet(CLTLayerDet):
         dilation=1,
         groups=1,
         isinput=False,
+        isoutput=False,
     ):
         super(CLTLayerDet, self).__init__()
         self.n_in = in_channels
         self.n_out = out_channels
 
         self.isinput = isinput
+        self.isoutput = isoutput
         self.kernel_size = kernel_size
         self.stride = _pair(stride)
         self.padding = _pair(padding)
@@ -430,7 +432,10 @@ class ConvCLTLayerDet(CLTLayerDet):
             self.groups,
         )
 
-        return self.relu_moments(mu_f, var_f.sqrt())
+        if self.isoutput:
+            return mu_f, var_f
+        else:
+            return self.relu_moments(mu_f, var_f.sqrt())
 
     def __repr__(self):
         s = "{name}({n_in}, {n_out}, kernel_size={kernel_size}" ", stride={stride}"
