@@ -38,6 +38,7 @@ class PositionalEncoding(nn.Module):
             Tensor: Returned position embedding.
         """
         return self.pos_embeddings[t, :]
+
 #Helper function to make blocks used in UNetNSDE
 class double_conv(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -46,15 +47,9 @@ class double_conv(nn.Module):
         self.act = nn.ReLU()
         self.conv2 = ConvCLTLayerDet(out_channels, out_channels, 3, padding=1)
 
-
     def forward(self, mu, var):
         mu1, var1 = self.conv1(mu,var)
-        mu1 = self.act(mu1)
-        var1 = self.act(var1)
-
         mu2, var2 = self.conv2(mu1,var1)
-        mu2 = self.act(mu2)
-        var2 = self.act(var2)
         return mu2,var2
 
 # Simple class without much structure
@@ -194,9 +189,9 @@ class UNetNSDE(nn.Module):
 # UNet implemented using ConvCLTLayerDet for decoder blocks
 class UNetNSDEMid(nn.Module):
 
-    def __init__(self, n_class):
+    def __init__(self, channels):
         super().__init__()
-        self.dconv_down1 = double_conv_func(n_class, 64, 0)
+        self.dconv_down1 = double_conv_func(channels, 64, 0)
         self.dconv_down2 = double_conv_func(64, 128, 0)
         self.dconv_down3 = double_conv_func(128, 256, 0)
         self.dconv_down4 = double_conv_func(256, 512, 0)        
@@ -207,22 +202,22 @@ class UNetNSDEMid(nn.Module):
 
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)        
         
-        self.dconv_up3 = double_conv_func(256 + 512, 256, 0)
-        self.dconv_up2 = double_conv_func(128 + 256, 128, 0)
-        self.dconv_up1 = double_conv_func(128 + 64, 64, 0)
+        self.dconv_up3 = double_conv(256 + 512, 256)
+        self.dconv_up2 = double_conv(128 + 256, 128)
+        self.dconv_up1 = double_conv(64 + 128, 64)
         
-        self.conv_last = nn.Conv2d(64, n_class, 1)
+        self.conv_last = ConvCLTLayerDet(64, channels, 1, isoutput=True)
         
         
     def forward(self, x, ts):
-        conv1 = self.dconv_down1(x)
-        x = self.maxpool(conv1)
+        mu1 = self.dconv_down1(x)
+        x = self.maxpool(mu1)
 
-        conv2 = self.dconv_down2(x)
-        x = self.maxpool(conv2)
+        mu2 = self.dconv_down2(x)
+        x = self.maxpool(mu2)
         
-        conv3 = self.dconv_down3(x)
-        x = self.maxpool(conv3)   
+        mu3 = self.dconv_down3(x)
+        x = self.maxpool(mu3)   
         
         x = self.dconv_down4(x)
         
@@ -231,21 +226,28 @@ class UNetNSDEMid(nn.Module):
         x, y = self.decoder_block1(x, y)
 
         x = self.upsample(x)        
-        x = torch.cat([x, conv3], dim=1)
+        y = self.upsample(y)        
+        x = torch.cat([x, mu3], dim=1)
+        y = torch.cat([y, torch.ones_like(mu3)*1e-6], dim=1)
         
-        x = self.dconv_up3(x)
+        x,y = self.dconv_up3(x,y)
         x = self.upsample(x)        
-        x = torch.cat([x, conv2], dim=1)       
+        y = self.upsample(y)        
+        x = torch.cat([x, mu2], dim=1)
+        y = torch.cat([y, torch.ones_like(mu2)*1e-6], dim=1)     
 
-        x = self.dconv_up2(x)
+
+        x,y = self.dconv_up2(x,y)
         x = self.upsample(x)        
-        x = torch.cat([x, conv1], dim=1)   
-
-        x= self.dconv_up1(x)
+        y = self.upsample(y)        
+        x = torch.cat([x, mu1], dim=1)
+        y = torch.cat([y, torch.ones_like(mu1)*1e-6], dim=1)    
         
-        out = self.conv_last(x)
+        x,y = self.dconv_up1(x,y)
         
-        return out
+        out, var = self.conv_last(x,y)
+        
+        return out, var
     
 #Helper function to make blocks used in UNet
 def double_conv_func(in_channels, out_channels, p=0.1):

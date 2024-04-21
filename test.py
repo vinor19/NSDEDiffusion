@@ -16,7 +16,7 @@ img = Image.open("5.png").convert("L")
 convert_tensor = transforms.ToTensor()
 img = convert_tensor(img)
 img = img.view(1,*img.shape)
-var = torch.ones_like(img)
+var = torch.ones_like(img)*1e-6
 
 # Act
 layerOutputMu, layerOutputVar = layer(img, var)

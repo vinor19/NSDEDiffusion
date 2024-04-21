@@ -337,11 +337,11 @@ class CLTLayerDet(nn.Module):
         )
 
     def relu_moments(self, mu, sig):
-        alpha = mu / sig
+        alpha = mu / sig.clamp(1e-6)
         cdf = self.cdf(alpha)
         pdf = self.pdf(alpha)
-        relu_mean = mu * cdf + sig * pdf
-        relu_var = (sig.pow(2) + mu.pow(2)) * cdf + mu * sig * pdf - relu_mean.pow(2)
+        relu_mean = mu * cdf + sig.clamp(1e-6) * pdf
+        relu_var = (sig.clamp(1e-6).pow(2) + mu.pow(2)) * cdf + mu * sig.clamp(1e-6) * pdf - relu_mean.pow(2)
         # relu_mean[sig.eq(0)] = mu[sig.eq(0)] * (mu[sig.eq(0)]>0)
         # relu_var[sig.eq(0)] = 0
         return relu_mean, relu_var
@@ -423,7 +423,7 @@ class ConvCLTLayerDet(CLTLayerDet):
             self.groups,
         )
         var_f = F.conv2d(
-            var_h,
+            var_h.clamp(1e-6),
             self.M.pow(2),
             None,
             self.stride,
@@ -435,7 +435,7 @@ class ConvCLTLayerDet(CLTLayerDet):
         if self.isoutput:
             return mu_f, var_f
         else:
-            return self.relu_moments(mu_f, var_f.sqrt())
+            return self.relu_moments(mu_f, var_f.clamp(1e-6).sqrt())
 
     def __repr__(self):
         s = "{name}({n_in}, {n_out}, kernel_size={kernel_size}" ", stride={stride}"
