@@ -3,7 +3,7 @@ import torch.nn as nn
 from Baysian_Layers import ConvCLTLayerDet
 from Models.UNetATT import SinusoidalPositionEmbeddings
 
-#Helper function to make blocks used in UNetNSDE
+#Helper function to make blocks used in UNetCLT
 class double_conv(nn.Module):
     def __init__(self, in_channels, out_channels, time_emb):
         super().__init__()
@@ -40,7 +40,7 @@ class double_conv_no_clt(nn.Module):
         return mu4
 
 # Simple class without much structure
-class ConvNSDE(nn.Module):
+class ConvCLT(nn.Module):
     def __init__(self,channels):
 
         super().__init__()
@@ -51,7 +51,7 @@ class ConvNSDE(nn.Module):
     def forward(self, x, y):
         return self.conv_last(*self.dconv_down(x,y))
 
-class UNetNSDE2(nn.Module):
+class UNetCLT2(nn.Module):
 
     def __init__(self, base_channels, channels, time_multiple = 2):
         super().__init__()
@@ -124,7 +124,7 @@ class UNetNSDE2(nn.Module):
         return out
 
 # UNet implemented using ConvCLTLayerDet for the output
-class UNetNSDE(nn.Module):
+class UNetCLT(nn.Module):
 
     def __init__(self, n_class, base_channels, time_multiple = 2):
         super().__init__()
@@ -183,7 +183,7 @@ class UNetNSDE(nn.Module):
         return out, var
 
 # UNet implemented using ConvCLTLayerDet for decoder blocks
-class UNetNSDEMid(nn.Module):
+class UNetCLTMid(nn.Module):
 
     def __init__(self, channels, base_channels, time_multiple = 2):
         super().__init__()
@@ -195,8 +195,8 @@ class UNetNSDEMid(nn.Module):
         self.dconv_down4 = double_conv_no_clt(256, 512, time_emb_dims_exp, 0)        
         self.maxpool = nn.MaxPool2d(2)
 
-        self.decoder_block1 = double_conv(512,512, time_emb_dims_exp)
-        self.decoder_block2 = double_conv(512,512, time_emb_dims_exp)
+        self.bottleneck_block1 = double_conv(512,512, time_emb_dims_exp)
+        self.bottleneck_block2 = double_conv(512,512, time_emb_dims_exp)
 
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)        
         
@@ -221,8 +221,8 @@ class UNetNSDEMid(nn.Module):
         x = self.dconv_down4(x, time_emb)
         
         y = torch.ones_like(x)*1e-6
-        x, y = self.decoder_block1(x, y, time_emb)
-        x, y = self.decoder_block1(x, y, time_emb)
+        x, y = self.bottleneck_block1(x, y, time_emb)
+        x, y = self.bottleneck_block2(x, y, time_emb)
 
         x = self.upsample(x)        
         y = self.upsample(y)        
@@ -262,8 +262,8 @@ class UNetSimple(nn.Module):
         self.dconv_down3 = double_conv_no_clt(128, 256, time_emb_dims_exp)
         self.dconv_down4 = double_conv_no_clt(256, 512, time_emb_dims_exp)
         self.maxpool = nn.MaxPool2d(2)
-        self.decoder_block1 = double_conv_no_clt(512,512, time_emb_dims_exp)
-        self.decoder_block2 = double_conv_no_clt(512,512, time_emb_dims_exp)
+        self.bottleneck_block1 = double_conv_no_clt(512,512, time_emb_dims_exp)
+        self.bottleneck_block2 = double_conv_no_clt(512,512, time_emb_dims_exp)
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         
         self.dconv_up3 = double_conv_no_clt(256 + 512, 256, time_emb_dims_exp)
@@ -287,8 +287,8 @@ class UNetSimple(nn.Module):
         
         x = self.dconv_down4(x, time_emb)
         
-        x = self.decoder_block1(x, time_emb)
-        x = self.decoder_block1(x, time_emb)
+        x = self.bottleneck_block1(x, time_emb)
+        x = self.bottleneck_block2(x, time_emb)
 
         x = self.upsample(x)        
         x = torch.cat([x, conv3], dim=1)
